@@ -7,16 +7,15 @@ import pygame
 HOST = "localhost"
 PORT = 8000
 
-# Initialize Pygame
 pygame.init()
 
-# Set up the Pygame window
-WIDTH, HEIGHT = 800, 600
-window = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Client")
-BOARD_SIZE = 10
 
-# Colors
+WIDTH, HEIGHT = 1200, 600
+SCREEN_SIZE = (WIDTH, HEIGHT + 100)
+window = pygame.display.set_mode(SCREEN_SIZE)
+pygame.display.set_caption("Client")
+BOARD_SIZE = (5, 4)
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 board = []
@@ -49,15 +48,14 @@ def receive_messages():
                 text = "Your turn" if turn else "Opponent's turn"
             elif data["message"] == "You lost!":
                 turn = False
-                text = "You lost!"
-                # server_socket.close()
-                break
+                text = "You lost! Waiting for a player to join..."
             elif data["message"] == "You won!":
                 turn = False
-                text = "You won!"
-                # server_socket.close()
-                break
-
+                text = "You won! Waiting for a player to join..."
+            elif data["message"] == "disconnect":
+                text = "Opponent disconnected. Waiting for a player to join..."
+                print("Opponent disconnected.")
+                turn = False
         except:
             print("Disconnected from the server.")
             server_socket.close()
@@ -73,30 +71,54 @@ def send_message(message):
 
 
 def handle_click(x, y):
-    if x < BOARD_SIZE and y < BOARD_SIZE and board[x][y] == 0:
-        # board[x][y] = 1
-        # # mark as well the right and below cell
-        # if x < BOARD_SIZE - 1:
-        #     board[x + 1][y] = 1
-        # if y < BOARD_SIZE - 1:
-        #     board[x][y + 1] = 1
-        print(x, y)
-        send_message({"message": "move", "data": (x, y), "turn": not turn})
+    if x < BOARD_SIZE[0] and y < BOARD_SIZE[1] and board[x][y] == 0:
+        send_message({"message": "move", "data": (x, y)})
 
 
 def draw_board():
-
     for i in range(len(board)):
         for j in range(len(board[i])):
-            if board[i][j] == 0:
-                # draw a white filled rectangle
-                pygame.draw.rect(window, WHITE, (i * 50, j * 50, 50, 50))
-            elif board[i][j] == 1:
-                pygame.draw.rect(window, (100, 100, 100), (i * 50, j * 50, 50, 50))
 
-            # draw a gap between the tiles
-            pygame.draw.line(window, BLACK, (i * 50, 0), (i * 50, 500))
-            pygame.draw.line(window, BLACK, (0, j * 50), (500, j * 50))
+            # draw brown square based on smaller dimension with gaps between squares
+            if board[i][j] == 0:
+                pygame.draw.rect(
+                    window,
+                    (139, 69, 19),
+                    (
+                        i * (WIDTH // BOARD_SIZE[0]) + 1,
+                        j * (HEIGHT // BOARD_SIZE[1]) + 1,
+                        WIDTH // BOARD_SIZE[0] - 2,
+                        HEIGHT // BOARD_SIZE[1] - 2,
+                    ),
+                )
+
+            if i == 0 and j == 0 and board[i][j] == 0:
+                img = pygame.image.load("img2.png").convert_alpha()
+                img.set_colorkey((255, 255, 255))
+                img = pygame.transform.scale(
+                    img, (WIDTH // BOARD_SIZE[0], HEIGHT // BOARD_SIZE[1])
+                )
+                rect = img.get_rect()
+
+                rect.move(i * (WIDTH // BOARD_SIZE[0]), j * (HEIGHT // BOARD_SIZE[1]))
+                window.blit(img, rect)
+
+    # for i in range(0, BOARD_SIZE[0] + 1):
+    #     pygame.draw.line(
+    #         window,
+    #         BLACK,
+    #         (i * (WIDTH // BOARD_SIZE[0]), 0),
+    #         (i * (WIDTH // BOARD_SIZE[0]), HEIGHT),
+    #         2,
+    #     )
+    # for i in range(0, BOARD_SIZE[1] + 1):
+    #     pygame.draw.line(
+    #         window,
+    #         BLACK,
+    #         (0, i * (HEIGHT // BOARD_SIZE[1])),
+    #         (WIDTH, i * (HEIGHT // BOARD_SIZE[1])),
+    #         2,
+    #     )
 
 
 def draw_text(text, font, color, surface, x, y):
@@ -106,12 +128,10 @@ def draw_text(text, font, color, surface, x, y):
     surface.blit(text_obj, text_rect)
 
 
-# Start a new thread to receive messages from the server
 receive_thread = threading.Thread(target=receive_messages)
 receive_thread.start()
 
-send_message({"message": "board_size", "data": 10})
-# Game loop
+send_message({"message": "board_size", "data": BOARD_SIZE})
 running = True
 while running:
     window.fill(WHITE)
@@ -119,28 +139,29 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
-        # if mouse is clicked get position of board
+            send_message({"message": "disconnect"})
+            server_socket.close()
         if event.type == pygame.MOUSEBUTTONDOWN:
             if not turn:
                 continue
             pos = pygame.mouse.get_pos()
-            column = pos[0] // 50
-            row = pos[1] // 50
-            # check if the tile is in bounds
-            handle_click(column, row)
+            x = pos[0] // (WIDTH // BOARD_SIZE[0])
+            y = pos[1] // (HEIGHT // BOARD_SIZE[1])
+            handle_click(x, y)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                running = False
+                send_message({"message": "disconnect"})
+                server_socket.close()
 
-    # Update the game display
     draw_board()
-
     draw_text(
         text,
-        pygame.font.SysFont("Arial", 30),
+        pygame.font.SysFont("Arial", 25, bold=True, italic=False),
         BLACK,
         window,
-        100,
-        500,
-    )
-
+        20,
+        SCREEN_SIZE[1] - (SCREEN_SIZE[1] - HEIGHT) // 2 - 25,
+    ),
     pygame.display.update()
 pygame.quit()

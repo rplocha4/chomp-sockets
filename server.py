@@ -26,11 +26,15 @@ def handle_client(client_socket, address):
                 return
             print(f"Received: {data['message']}")
             if data["message"] == "board_size":
-                board_length = data["data"]
-                clients.append({"addr": client_socket, "board": board_length})
+                width, height = data["data"]
+                clients.append({"addr": client_socket, "board": data["data"]})
                 for c in clients:
-                    if c["addr"] != client_socket:
-                        board = generate_board_data(board_length)
+                    if (
+                        c["addr"] != client_socket
+                        and c["board"] == data["data"]
+                        and not_in_pairs(c["addr"])
+                    ):
+                        board = generate_board_data(width, height)
                         pairs.append(
                             {
                                 "pair": (client_socket, c["addr"]),
@@ -70,7 +74,14 @@ def handle_client(client_socket, address):
                     )
                     remove_client(client_socket)
                     remove_client(get_user_pair(client_socket))
+                    remove_pair(client_socket)
                     break
+            elif data["message"] == "disconnect":
+                pair = get_user_pair(client_socket)
+                remove_client(client_socket)
+                send_message({"message": "disconnect"}, pair)
+                remove_pair(client_socket)
+                break
 
         except:
             print("Disconnected from the server.")
@@ -85,13 +96,17 @@ def get_user_pair(client_socket):
 
 
 def update_baord(board, x, y):
-    board[x][y] = 1
-    # mark as well the right and below cell
-    if x < len(board) - 1:
-        board[x + 1][y] = 1
-    if y < len(board[0]) - 1:
-        board[x][y + 1] = 1
+    for i in range(x, len(board)):
+        for j in range(y, len(board[i])):
+            board[i][j] = 1
     return board
+
+
+def not_in_pairs(client_socket):
+    for p in pairs:
+        if p["pair"][0] == client_socket or p["pair"][1] == client_socket:
+            return False
+    return True
 
 
 def get_pair_board(pair):
@@ -107,37 +122,43 @@ def update_pair_board(board, pair):
             break
 
 
+def remove_pair(client_socket):
+    with lock:
+        for p in pairs:
+            if p["pair"][0] == client_socket or p["pair"][1] == client_socket:
+                index = pairs.index(p)
+                del pairs[index]
+                break
+
+
 def remove_client(client_socket):
     with lock:
-        if client_socket in clients:
-            index = clients.index(client_socket)
-            del clients[index]
-            del board_lengths[index]
+        for c in clients:
+            if c["addr"] == client_socket:
+                index = clients.index(c)
+                del clients[index]
+                break
 
 
-def generate_board_data(board_length):
-    # Placeholder function to generate board data (replace with your own implementation)
-    return [[0 for _ in range(board_length)] for _ in range(board_length)]
+def generate_board_data(width, height):
+    return [[0 for _ in range(height)] for _ in range(width)]
 
 
 def accept_connections():
     while True:
         client_socket, address = server_socket.accept()
         print(f"Client connected: {address}")
-        # Start a new thread to handle client communication
         client_thread = threading.Thread(
             target=handle_client, args=(client_socket, address)
         )
         client_thread.start()
 
 
-# Set up server socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind((HOST, PORT))
 server_socket.listen()
 
 print("Server started. Waiting for connections...")
 
-# Start accepting client connections
 accept_thread = threading.Thread(target=accept_connections)
 accept_thread.start()
