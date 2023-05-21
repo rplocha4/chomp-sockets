@@ -51,7 +51,7 @@ class InputBox:
         text_surface = self.font.render(self.text, True, BLACK)
         screen.blit(text_surface, (self.rect.x + 5, self.rect.y + 5))
         label_surface = self.font.render(self.label, True, BLACK)
-        screen.blit(label_surface, (self.rect.x - 150, self.rect.y + 5))
+        screen.blit(label_surface, (self.rect.x - 170, self.rect.y + 5))
 
 
 class GameClient:
@@ -61,6 +61,8 @@ class GameClient:
         self.turn = False
         self.text = "Waiting for a player to join..."
         self.IN_GAME = False
+        self.PLAY_AGAIN_CHOICE = False
+        self.title = "Game Client"
 
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.connect((HOST, PORT))
@@ -78,6 +80,8 @@ class GameClient:
                 if not data:
                     continue
                 print(f"Received: {data['message']}")
+                self.turn = False
+
                 if data["message"] == "board_data":
                     self.board = data["data"]
                     self.turn = data["turn"]
@@ -88,23 +92,27 @@ class GameClient:
                     self.turn = data["turn"]
                     self.text = "Your turn" if self.turn else "Opponent's turn"
                 elif data["message"] == "You lost!":
-                    self.turn = False
                     self.text = "You lost! Waiting for a player to join..."
-                    self.send_message(
-                        {"message": "board_size", "data": self.board_size}
-                    )
+                    # self.send_message(
+                    #     {"message": "board_size", "data": self.board_size}
+                    # )
+                    self.title = "Game Client" + " - You lost!"
+                    self.PLAY_AGAIN_CHOICE = True
+                    self.IN_GAME = False
 
                 elif data["message"] == "You won!":
-                    self.turn = False
                     self.text = "You won! Waiting for a player to join..."
-                    self.send_message(
-                        {"message": "board_size", "data": self.board_size}
-                    )
+                    # self.send_message(
+                    #     {"message": "board_size", "data": self.board_size}
+                    # )
+                    self.title = "Game Client" + " - You Won!"
+
+                    self.PLAY_AGAIN_CHOICE = True
+                    self.IN_GAME = False
 
                 elif data["message"] == "disconnect":
                     self.text = "Opponent disconnected. Waiting for a player to join..."
                     print("Opponent disconnected.")
-                    self.turn = False
             except:
                 print("Disconnected from the server.")
                 self.server_socket.close()
@@ -158,10 +166,13 @@ class GameClient:
 
     def game_loop(self):
         window = pygame.display.set_mode(SCREEN_SIZE)
+        pygame.display.set_caption(self.title)
         running = True
 
         while running:
             window.fill(WHITE)
+            if not self.IN_GAME:
+                return
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -194,9 +205,54 @@ class GameClient:
 
         pygame.quit()
 
+    def play_again_choice(self):
+        screen = pygame.display.set_mode((400, 200))
+        pygame.display.set_caption(self.title + " - Play again?")
+
+        width_box = InputBox(200, 50, 140, 32, "Play again?(y/n)")
+
+        button_rect = pygame.Rect(210, 150, 80, 32)
+        button_text = pygame.font.Font(None, 24).render("Submit", True, WHITE)
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+                width_box.handle_event(event)
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if button_rect.collidepoint(event.pos):
+                        if width_box.text == "y":
+                            self.send_message(
+                                {"message": "board_size", "data": self.board_size}
+                            )
+
+                            # self.send_message(
+                            #     {"message": "play again", "data": self.board_size}
+                            # )
+                            self.title = "Game Client"
+                            self.text = "Waiting for a player to join..."
+                            self.board = []
+                            self.turn = False
+                            self.IN_GAME = True
+                            self.PLAY_AGAIN_CHOICE = False
+                            return
+                        elif width_box.text == "n":
+                            pygame.quit()
+                            return
+                        else:
+                            print("Invalid input")
+
+            screen.fill(WHITE)
+            width_box.draw(screen)
+            pygame.draw.rect(screen, BLACK, button_rect)
+            screen.blit(button_text, button_rect.move(10, 0))
+
+            pygame.display.flip()
+
     def choice(self):
         screen = pygame.display.set_mode((400, 200))
-        pygame.display.set_caption("Input Box Example")
+        pygame.display.set_caption(self.title + " - Choose board size")
 
         width_box = InputBox(200, 50, 140, 32, "Width:")
         height_box = InputBox(200, 100, 140, 32, "Height:")
@@ -222,6 +278,7 @@ class GameClient:
                             self.send_message(
                                 {"message": "board_size", "data": (width, height)}
                             )
+                            self.title = "Game Client"
                             self.IN_GAME = True
                             return
                         except ValueError:
@@ -242,7 +299,10 @@ class GameClient:
         while True:
             if self.IN_GAME:
                 self.game_loop()
-            self.choice()
+            elif self.PLAY_AGAIN_CHOICE:
+                self.play_again_choice()
+            else:
+                self.choice()
 
 
 game = GameClient()

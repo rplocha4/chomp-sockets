@@ -21,13 +21,36 @@ def handle_client(client_socket, address):
         try:
             data = client_socket.recv(1024)
             data = pickle.loads(data)
-            print(data)
             if not data:
-                return
+                continue
             print(f"Received: {data['message']}")
             if data["message"] == "board_size":
                 width, height = data["data"]
                 clients.append({"addr": client_socket, "board": data["data"]})
+                for c in clients:
+                    if (
+                        c["addr"] != client_socket
+                        and c["board"] == data["data"]
+                        and not_in_pairs(c["addr"])
+                    ):
+                        board = generate_board_data(width, height)
+                        pairs.append(
+                            {
+                                "pair": (client_socket, c["addr"]),
+                                "board": board,
+                            }
+                        )
+                        send_message(
+                            {"message": "Paired", "data": board, "turn": True},
+                            client_socket,
+                        )
+                        send_message(
+                            {"message": "Paired", "data": board, "turn": False},
+                            c["addr"],
+                        )
+                        break
+            elif data["message"] == "play again":
+                width, height = data["data"]
                 for c in clients:
                     if (
                         c["addr"] != client_socket
@@ -75,7 +98,6 @@ def handle_client(client_socket, address):
                     remove_client(client_socket)
                     remove_client(get_user_pair(client_socket))
                     remove_pair(client_socket)
-                    break
             elif data["message"] == "disconnect":
                 pair = get_user_pair(client_socket)
                 remove_client(client_socket)
@@ -83,7 +105,8 @@ def handle_client(client_socket, address):
                 remove_pair(client_socket)
                 break
 
-        except:
+        except Exception as e:
+            print(e)
             print("Disconnected from the server.")
             client_socket.close()
             return
