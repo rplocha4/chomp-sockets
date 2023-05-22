@@ -211,12 +211,16 @@ class GameClient:
 
     def play_again_choice(self):
         screen = pygame.display.set_mode((400, 200))
+        pygame.font.init()
         pygame.display.set_caption(self.title + " - Play again?")
 
         width_box = InputBox(200, 50, 140, 32, "Play again?(y/n)")
 
         button_rect = pygame.Rect(210, 150, 80, 32)
         button_text = pygame.font.Font(None, 24).render("Submit", True, WHITE)
+
+        new_board = pygame.Rect(30, 150, 110, 32)
+        new_board_text = pygame.font.Font(None, 24).render("New board", True, WHITE)
 
         while True:
             for event in pygame.event.get():
@@ -235,6 +239,10 @@ class GameClient:
                         return
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
+                    if new_board.collidepoint(event.pos):
+                        self.IN_GAME = False
+                        self.PLAY_AGAIN_CHOICE = False
+                        return
 
                     if (
                         button_rect.collidepoint(event.pos)
@@ -267,7 +275,9 @@ class GameClient:
             screen.fill(WHITE)
             width_box.draw(screen)
             pygame.draw.rect(screen, BLACK, button_rect)
-            screen.blit(button_text, button_rect.move(10, 0))
+            pygame.draw.rect(screen, BLACK, new_board)
+            screen.blit(button_text, button_rect.move(10, 7))
+            screen.blit(new_board_text, new_board.move(10, 7))
 
             pygame.display.flip()
 
@@ -277,9 +287,15 @@ class GameClient:
 
         width_box = InputBox(200, 50, 140, 32, "Width:")
         height_box = InputBox(200, 100, 140, 32, "Height:")
+        pygame.font.init()
 
         button_rect = pygame.Rect(210, 150, 80, 32)
         button_text = pygame.font.Font(None, 24).render("Submit", True, WHITE)
+        error = False
+        error_rect = pygame.Rect(50, 20, 80, 32)
+        error_text = pygame.font.Font(None, 24).render(
+            "Invalid Input", True, (255, 0, 0)
+        )
 
         while True:
             for event in pygame.event.get():
@@ -287,6 +303,12 @@ class GameClient:
                     self.running = False
                     pygame.quit()
                     return
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.running = False
+
+                        pygame.quit()
+                        return
                 width_box.handle_event(event)
                 height_box.handle_event(event)
                 if event.type == pygame.MOUSEBUTTONDOWN:
@@ -294,6 +316,10 @@ class GameClient:
                         try:
                             width = int(width_box.text)
                             height = int(height_box.text)
+                            if width < 1 or height < 1:
+                                raise ValueError
+                            if width > 20 or height > 20:
+                                raise ValueError
                             print("Width:", width)
                             print("Height:", height)
                             self.board_size = (width, height)
@@ -302,15 +328,20 @@ class GameClient:
                             )
                             self.title = "Game Client"
                             self.IN_GAME = True
+                            error = False
                             return
                         except ValueError:
+                            error = True
                             print("Invalid input")
 
             screen.fill(WHITE)
             width_box.draw(screen)
             height_box.draw(screen)
             pygame.draw.rect(screen, BLACK, button_rect)
-            screen.blit(button_text, button_rect.move(10, 0))
+            screen.blit(button_text, button_rect.move(10, 7))
+            if error:
+                # pygame.draw.rect(screen, (255, 255, 0), error)
+                screen.blit(error_text, error_rect.move(10, 7))
 
             pygame.display.flip()
 
