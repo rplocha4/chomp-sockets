@@ -8,6 +8,8 @@ HOST = "localhost"
 PORT = 8000
 
 pygame.init()
+# pygame.font.init()
+
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -18,6 +20,7 @@ SCREEN_SIZE = (WIDTH, HEIGHT + 100)
 
 class InputBox:
     def __init__(self, x, y, width, height, label):
+        pygame.font.init()
         self.rect = pygame.Rect(x, y, width, height)
         self.color = GRAY
         self.text = ""
@@ -63,6 +66,7 @@ class GameClient:
         self.IN_GAME = False
         self.PLAY_AGAIN_CHOICE = False
         self.title = "Game Client"
+        self.running = True
 
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.connect((HOST, PORT))
@@ -217,11 +221,26 @@ class GameClient:
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    self.running = False
+
                     pygame.quit()
                     return
                 width_box.handle_event(event)
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.running = False
+
+                        pygame.quit()
+                        return
+
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    if button_rect.collidepoint(event.pos):
+
+                    if (
+                        button_rect.collidepoint(event.pos)
+                        or pygame.key.get_pressed()[pygame.K_RETURN]
+                    ):
+
                         if width_box.text == "y":
                             self.send_message(
                                 {"message": "board_size", "data": self.board_size}
@@ -239,6 +258,8 @@ class GameClient:
                             return
                         elif width_box.text == "n":
                             pygame.quit()
+                            self.running = False
+
                             return
                         else:
                             print("Invalid input")
@@ -263,6 +284,7 @@ class GameClient:
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    self.running = False
                     pygame.quit()
                     return
                 width_box.handle_event(event)
@@ -296,13 +318,14 @@ class GameClient:
         receive_thread = threading.Thread(target=self.receive_messages)
         receive_thread.start()
 
-        while True:
+        while self.running:
             if self.IN_GAME:
                 self.game_loop()
             elif self.PLAY_AGAIN_CHOICE:
                 self.play_again_choice()
             else:
                 self.choice()
+        self.server_socket.close()
 
 
 game = GameClient()
